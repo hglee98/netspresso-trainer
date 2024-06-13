@@ -5,9 +5,9 @@ from omegaconf import DictConfig
 import torch
 import torch.nn as nn
 
-
 from ....op.custom import ConvLayer
-from ....utils import ModelOutput
+from ....utils import AnchorBasedDetectionModelOutput
+from .detection import AnchorGenerator
 
 # TODO: Expand features to make it fully compatible with Yolov3 head and change the name to Yolov3Head
 class YoloFastestHead(nn.Module):
@@ -25,9 +25,19 @@ class YoloFastestHead(nn.Module):
         anchors = params.anchors
         num_anchors = len(anchors[0]) // 2
         num_layers = len(anchors)
-
+        self.anchors = anchors
+        tmp_cell_anchors = []
+        for a in self.anchors: 
+            a = torch.tensor(a).view(-1, 2)
+            wa = a[:, 0:1]
+            ha = a[:, 1:]
+            base_anchors = torch.cat([-wa, -ha, wa, ha], dim=-1)/2
+            tmp_cell_anchors.append(base_anchors) 
+        self.anchor_generator = AnchorGenerator() # TODO: dynamic image_size 
+        self.anchor_generator.cell_anchors = tmp_cell_anchors
+        self.num_anchors = num_anchors
         self.num_layers = num_layers
-
+        self.num_classes = num_classes
         out_channels = num_anchors * (5 + num_classes)
         norm_type = params.norm_type
         use_act = False
@@ -70,7 +80,23 @@ class YoloFastestHead(nn.Module):
         out1 = self.layer_1(x1)
         out2 = self.layer_2(x2)
         output = [out1, out2]
-        return ModelOutput({'pred': output})
+        all_cls_logits = []
+        all_bbox_regression = []
+        anchors = torch.cat(self.anchor_generator(output), dim=0)
+        for idx, o in enumerate(output): 
+            N, _, H, W = o.shape
+            o = o.view(N, self.num_anchors, -1, H, W).permute(0, 3, 4, 1, 2)
+            bbox_regression = o[..., :4]
+            cls_logits = o[..., 4:]
+            bbox_regression = bbox_regression.reshape(N, -1, 4)  # Size=(N, HWA, 4)
+            cls_logits = cls_logits.reshape(N, -1, self.num_classes + 1)  # Size=(N, HWA, K+1)
+            all_bbox_regression.append(bbox_regression)
+            all_cls_logits.append(cls_logits)  
+        return AnchorBasedDetectionModelOutput({"pred": output,
+                                                "anchors": anchors, 
+                                                "bbox_regression": all_bbox_regression, 
+                                                "cls_logits": all_cls_logits, 
+                                                "conf_score": True})
 
 
 def yolo_fastest_head(

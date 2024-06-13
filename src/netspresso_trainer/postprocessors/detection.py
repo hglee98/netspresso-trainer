@@ -25,79 +25,37 @@ from torchvision.ops import boxes as box_ops
 from ..models.utils import ModelOutput
 
 
-def anchor_coupled_head_decode(pred, original_shape, anchors=[[12,10, 11,28, 24,17], [45,21, 24,60, 92,73]], score_thresh=0.05):
-    pred = pred['pred']
-    dtype = pred[0].type()
-    grids = []
-    strides = []
-    stage_strides= [original_shape[-1] // o.shape[-1] for o in pred]
-    hw = [x.shape[-3:-1] for x in pred]
-    for (hsize, wsize), stride in zip(hw, stage_strides):
-        yv, xv = torch.meshgrid(torch.arange(hsize, device=pred[0].device), torch.arange(wsize, device=pred[0].device), indexing='ij')
-        grid = torch.stack((xv, yv), 2)
-        grids.append(grid)
-        shape = grid.shape[:2]
-        strides.append(torch.full((*shape, 1), stride, device=pred[0].device))
-        
-    
-    for idx, p in enumerate(pred):
-        anchor = torch.tensor(anchors[idx], device=p.device).clone().detach().view(-1, 1, 1, 2)
-        pred[idx] = torch.cat([
-                                (p[..., 0:2].sigmoid() + grids[idx]) * strides[idx],
-                                torch.exp(p[..., 2:4]) * anchor * strides[idx],
-                                p[..., 4:].sigmoid()], dim=-1).permute(0,4,1,2,3) 
-    
-    
-    
-    # [batch, n_anchors_all, num_classes + 5]
-    pred = torch.cat([x.flatten(start_dim=2) for x in pred], dim=2).permute(0, 2, 1) 
-    box_corner = pred.new(pred.shape)
-    box_corner[:, :, 0] = pred[:, :, 0] - pred[:, :, 2] / 2
-    box_corner[:, :, 1] = pred[:, :, 1] - pred[:, :, 3] / 2
-    box_corner[:, :, 2] = pred[:, :, 0] + pred[:, :, 2] / 2
-    box_corner[:, :, 3] = pred[:, :, 1] + pred[:, :, 3] / 2
-    pred[:, :, :4] = box_corner[:, :, :4]
-    # Discard boxes with low score
-    detections = []
-    for p in pred:
-        class_conf, class_pred = torch.max(p[:, 5:], 1, keepdim=True)
-        conf_mask = (p[:, 4] * class_conf.squeeze() >= score_thresh).squeeze()
 
-        # x1, y1, x2, y2, obj_conf, pred_score, pred_label
-         
-        detections.append(
-            torch.cat((p[:, :5], class_conf, class_pred.float()), 1)[conf_mask]
-        )
-
-    return detections
-
-
-def anchor_decoupled_head_decode(pred, original_shape, topk_candidates=1000, score_thresh=0.05):
+def anchor_based_head_decode(pred, original_shape, topk_candidates=1000, score_thresh=0.05):
     box_coder = BoxCoder(weights=(1.0, 1.0, 1.0, 1.0))
 
     class_logits = pred["cls_logits"]
     box_regression = pred["bbox_regression"]
     anchors = pred["anchors"]
-
+    conf_score = pred["conf_score"]
     detections = []
-
     for index in range(len(box_regression[0])):
         box_regression_per_image = [br[index] for br in box_regression]
         logits_per_image = [cl[index] for cl in class_logits]
         anchors_per_image = anchors.split([b.shape[0] for b in box_regression_per_image])
-
         image_boxes = []
         image_scores = []
         image_labels = []
+        image_confs = [] if conf_score else None
 
         for box_regression_per_level, logits_per_level, anchors_per_level in zip(
             box_regression_per_image, logits_per_image, anchors_per_image
         ):
-            num_classes = logits_per_level.shape[-1]
-
             # remove low scoring boxes
-            scores_per_level = torch.sigmoid(logits_per_level).flatten()
-            keep_idxs = scores_per_level > score_thresh
+            if conf_score:
+                num_classes = logits_per_level.shape[-1] - 1
+                scores_per_level = torch.sigmoid(logits_per_level[...,1:]).flatten()
+                confidence = torch.sigmoid(logits_per_level[...,0:1]).flatten()
+                keep_idxs = scores_per_level > score_thresh
+            else: 
+                num_classes = logits_per_level.shape[-1] 
+                scores_per_level = torch.sigmoid(logits_per_level).flatten()
+                keep_idxs = scores_per_level > score_thresh
             scores_per_level = scores_per_level[keep_idxs]
             topk_idxs = torch.where(keep_idxs)[0]
 
@@ -113,7 +71,6 @@ def anchor_decoupled_head_decode(pred, original_shape, topk_candidates=1000, sco
                 box_regression_per_level[anchor_idxs], anchors_per_level[anchor_idxs]
             )
             boxes_per_level = box_ops.clip_boxes_to_image(boxes_per_level, original_shape[1:])
-
             image_boxes.append(boxes_per_level)
             image_scores.append(scores_per_level)
             image_labels.append(labels_per_level)
@@ -216,11 +173,8 @@ class DetectionPostprocessor:
         if head_name == 'anchor_free_decoupled_head':
             self.decode_outputs = partial(anchor_free_decoupled_head_decode, score_thresh=postprocessor_params.score_thresh)
             self.postprocess = partial(nms, nms_thresh=postprocessor_params.nms_thresh, class_agnostic=postprocessor_params.class_agnostic)
-        elif head_name == 'anchor_decoupled_head':
-            self.decode_outputs = partial(anchor_decoupled_head_decode, topk_candidates=postprocessor_params.topk_candidates, score_thresh=postprocessor_params.score_thresh)
-            self.postprocess = partial(nms, nms_thresh=postprocessor_params.nms_thresh, class_agnostic=postprocessor_params.class_agnostic)
-        elif head_name == 'yolo_fastest_head':
-            self.decode_outputs = partial(anchor_coupled_head_decode, topk_candidates=postprocessor_params.topk_candidates, score_thresh=postprocessor_params.score_thresh)
+        elif head_name == 'anchor_decoupled_head' or head_name == "yolo_fastest_head":
+            self.decode_outputs = partial(anchor_based_head_decode, topk_candidates=postprocessor_params.topk_candidates, score_thresh=postprocessor_params.score_thresh)
             self.postprocess = partial(nms, nms_thresh=postprocessor_params.nms_thresh, class_agnostic=postprocessor_params.class_agnostic)
         else:
             self.decode_outputs = None

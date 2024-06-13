@@ -125,6 +125,7 @@ class AnchorBasedDetectionModelOutput(ModelOutput):
     anchors: FXTensorType
     cls_logits: FXTensorType
     bbox_regression: FXTensorType
+    conf_score: bool
 
 
 class DetectionModelOutput(ModelOutput):

@@ -61,7 +61,7 @@ class AnchorDecoupledHead(nn.Module):
         anchors = torch.cat(self.anchor_generator(x), dim=0)
         cls_logits = self.classification_head(x)
         bbox_regression = self.regression_head(x)
-        return AnchorBasedDetectionModelOutput(anchors=anchors, cls_logits=cls_logits, bbox_regression=bbox_regression)
+        return AnchorBasedDetectionModelOutput(anchors=anchors, cls_logits=cls_logits, bbox_regression=bbox_regression, conf_score=False)
 
 
 class RetinaNetClassificationHead(nn.Module):
@@ -109,7 +109,7 @@ class RetinaNetClassificationHead(nn.Module):
             N, _, H, W = cls_logits.shape
             cls_logits = cls_logits.view(N, -1, self.num_classes, H, W)
             cls_logits = cls_logits.permute(0, 3, 4, 1, 2)
-            cls_logits = cls_logits.reshape(N, -1, self.num_classes)  # Size=(N, HWA, 4)
+            cls_logits = cls_logits.reshape(N, -1, self.num_classes)  # Size=(N, HWA, K)
 
             all_cls_logits.append(cls_logits)
 

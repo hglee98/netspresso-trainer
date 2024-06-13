@@ -1,3 +1,19 @@
+# Copyright (C) 2024 Nota Inc. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# ----------------------------------------------------------------------------
+
 """
 Based on the Darknet implementation of Megvii.
 https://github.com/Megvii-BaseDetection/YOLOX/blob/main/yolox/models/darknet.py
@@ -14,6 +30,7 @@ from ...op.custom import (
     CSPLayer,
     Focus,
     SPPBottleneck,
+    SeparableConvLayer,
     DarknetBlock
 )
 from ...utils import BackboneOutput
@@ -35,7 +52,6 @@ class CSPDarknet(nn.Module):
         task: str,
         params: Optional[DictConfig] = None,
         stage_params: Optional[List] = None,
-        #depthwise=False,
     ) -> None:
         # Check task compatibility
         self.task = task.lower()
@@ -50,9 +66,10 @@ class CSPDarknet(nn.Module):
         dep_mul = params.dep_mul
         wid_mul = params.wid_mul
         act_type = params.act_type
-
+        depthwise = params.depthwise
+        
         self.out_features = out_features
-        Conv = ConvLayer
+        Conv = SeparableConvLayer if depthwise else ConvLayer
 
         base_channels = int(wid_mul * 64)  # 64
         base_depth = max(round(dep_mul * 3), 1)  # 3
@@ -71,7 +88,7 @@ class CSPDarknet(nn.Module):
                 base_channels * 2,
                 base_channels * 2,
                 n=base_depth,
-                #depthwise=depthwise,
+                depthwise=depthwise,
                 act_type=act_type,
             ),
         )
@@ -87,7 +104,7 @@ class CSPDarknet(nn.Module):
                 base_channels * 4,
                 base_channels * 4,
                 n=base_depth * 3,
-                #depthwise=depthwise,
+                depthwise=depthwise,
                 act_type=act_type,
             ),
         )
@@ -103,7 +120,7 @@ class CSPDarknet(nn.Module):
                 base_channels * 8,
                 base_channels * 8,
                 n=base_depth * 3,
-                #depthwise=depthwise,
+                depthwise=depthwise,
                 act_type=act_type,
             ),
         )
@@ -121,7 +138,7 @@ class CSPDarknet(nn.Module):
                 base_channels * 16,
                 n=base_depth,
                 shortcut=False,
-                #depthwise=depthwise,
+                depthwise=depthwise,
                 act_type=act_type,
             ),
         )

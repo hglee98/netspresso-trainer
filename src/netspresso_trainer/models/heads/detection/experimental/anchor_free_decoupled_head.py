@@ -1,6 +1,19 @@
-#!/usr/bin/env python3
-# -*- coding:utf-8 -*-
-# Copyright (c) Megvii Inc. All rights reserved.
+# Copyright (C) 2024 Nota Inc. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# ----------------------------------------------------------------------------
+
 """
 Based on the YOLOX implementation of Megvii.
 https://github.com/Megvii-BaseDetection/YOLOX/blob/main/yolox/models/yolo_head.py
@@ -12,7 +25,7 @@ from omegaconf import DictConfig
 import torch
 import torch.nn as nn
 
-from ....op.custom import ConvLayer
+from ....op.custom import ConvLayer, SeparableConvLayer
 from ....utils import ModelOutput
 
 
@@ -25,6 +38,7 @@ class AnchorFreeDecoupledHead(nn.Module):
     ):
         super().__init__()
         act_type = params.act_type
+        depthwise = params.depthwise
 
         self.num_classes = num_classes
 
@@ -34,12 +48,12 @@ class AnchorFreeDecoupledHead(nn.Module):
         self.reg_preds = nn.ModuleList()
         self.obj_preds = nn.ModuleList()
         self.stems = nn.ModuleList()
-        Conv = ConvLayer
+        Conv = SeparableConvLayer if depthwise else ConvLayer
 
         hidden_dim = int(intermediate_features_dim[0]) # 256 * width
         for i in range(len(intermediate_features_dim)):
             self.stems.append(
-                Conv(
+                ConvLayer(
                     in_channels=int(intermediate_features_dim[i]),
                     out_channels=hidden_dim,
                     kernel_size=1,

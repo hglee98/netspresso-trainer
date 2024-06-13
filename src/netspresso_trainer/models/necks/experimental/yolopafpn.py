@@ -1,10 +1,29 @@
+# Copyright (C) 2024 Nota Inc. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# ----------------------------------------------------------------------------
+
+# Modified from YOLOPAFPN of YOLOX:
+# https://github.com/Megvii-BaseDetection/YOLOX/blob/main/yolox/models/yolo_pafpn.py
+
 from typing import List
 
 from omegaconf import DictConfig
 import torch
 import torch.nn as nn
 
-from ...op.custom import ConvLayer, CSPLayer
+from ...op.custom import ConvLayer, CSPLayer, SeparableConvLayer
 from ...utils import BackboneOutput
 
 
@@ -19,9 +38,9 @@ class YOLOPAFPN(nn.Module):
         params: DictConfig,
     ):
         super().__init__()
-        
+        depthwise = params.depthwise
         self.in_channels = intermediate_features_dim
-        Conv = ConvLayer
+        Conv = SeparableConvLayer if depthwise else ConvLayer
 
         depth = params.dep_mul
         act_type = params.act_type
@@ -39,6 +58,7 @@ class YOLOPAFPN(nn.Module):
             out_channels=int(self.in_channels[1]),
             n=round(3 * depth),
             shortcut=False,
+            depthwise=depthwise,
             act_type=act_type,
         )  # cat
 
@@ -54,6 +74,7 @@ class YOLOPAFPN(nn.Module):
             out_channels=int(self.in_channels[0]),
             n=round(3 * depth),
             shortcut=False,
+            depthwise=depthwise,
             act_type=act_type,
         )
 
@@ -70,6 +91,7 @@ class YOLOPAFPN(nn.Module):
             out_channels=int(self.in_channels[1]),
             n=round(3 * depth),
             shortcut=False,
+            depthwise=depthwise,
             act_type=act_type,
         )
 
@@ -86,6 +108,7 @@ class YOLOPAFPN(nn.Module):
             out_channels=int(self.in_channels[2]),
             n=round(3 * depth),
             shortcut=False,
+            depthwise=depthwise,
             act_type=act_type,
         )
 

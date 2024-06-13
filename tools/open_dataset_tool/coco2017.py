@@ -1,3 +1,19 @@
+# Copyright (C) 2024 Nota Inc. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# ----------------------------------------------------------------------------
+
 import argparse
 from pathlib import Path
 import os
@@ -174,9 +190,8 @@ if __name__ == '__main__':
 
     # Build id_mapping
     id_mapping = [CLASS80_LABEL_TO_NAME[i] for i in range(80)]
-    with open(coco2017_path / 'id_mapping.txt', 'w') as f:
-        f.write('\n'.join(id_mapping))
-        f.close()
+    with open(coco2017_path / 'id_mapping.json', 'w') as f:
+        json.dump(id_mapping, f)
 
     try:
         shutil.rmtree(coco2017_path / 'annotations')

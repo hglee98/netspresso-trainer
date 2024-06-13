@@ -1,8 +1,25 @@
+# Copyright (C) 2024 Nota Inc. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# ----------------------------------------------------------------------------
+
 import argparse
 from pathlib import Path
 import os
 import tarfile
 import shutil
+import json
 
 import cv2
 import numpy as np
@@ -97,10 +114,8 @@ if __name__ == '__main__':
     val_label_csv.to_csv(valid_label_dir / 'cifar100_val.csv', mode='w', index=False)
 
     # Build id_mapping
-    id_mapping = CIFAR100_CLASSES
-    with open(data_dir / 'id_mapping.txt', 'w') as f:
-        f.write('\n'.join(id_mapping))
-        f.close()
+    with open(data_dir / 'id_mapping.json', 'w') as f:
+        json.dump(CIFAR100_CLASSES, f)
 
     try:
         shutil.rmtree(extracted_dir)

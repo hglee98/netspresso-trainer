@@ -1,3 +1,19 @@
+# Copyright (C) 2024 Nota Inc. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# ----------------------------------------------------------------------------
+
 from functools import partial
 
 import torch
@@ -9,7 +25,7 @@ from torchvision.ops import boxes as box_ops
 from ..models.utils import ModelOutput
 
 
-def anchor_coupled_head_decode(pred, original_shape, anchors=[[12,10, 11,28, 24,17], [45,21, 24,60, 92,73]], topk_candidates=1000, score_thresh=0.05):
+def anchor_coupled_head_decode(pred, original_shape, anchors=[[12,10, 11,28, 24,17], [45,21, 24,60, 92,73]], score_thresh=0.05):
     pred = pred['pred']
     dtype = pred[0].type()
     grids = []
@@ -196,18 +212,16 @@ def nms(prediction, nms_thresh=0.45, class_agnostic=False):
 class DetectionPostprocessor:
     def __init__(self, conf_model):
         head_name = conf_model.architecture.head.name
-        params = conf_model.architecture.head.params
+        postprocessor_params = conf_model.postprocessor
         if head_name == 'anchor_free_decoupled_head':
-            self.decode_outputs = partial(anchor_free_decoupled_head_decode, score_thresh=params.score_thresh)
-            self.postprocess = partial(nms, nms_thresh=params.nms_thresh, class_agnostic=params.class_agnostic)
+            self.decode_outputs = partial(anchor_free_decoupled_head_decode, score_thresh=postprocessor_params.score_thresh)
+            self.postprocess = partial(nms, nms_thresh=postprocessor_params.nms_thresh, class_agnostic=postprocessor_params.class_agnostic)
         elif head_name == 'anchor_decoupled_head':
-            self.decode_outputs = partial(anchor_decoupled_head_decode, topk_candidates=params.topk_candidates, score_thresh=params.score_thresh)
-            self.postprocess = partial(nms, nms_thresh=params.nms_thresh, class_agnostic=params.class_agnostic)
+            self.decode_outputs = partial(anchor_decoupled_head_decode, topk_candidates=postprocessor_params.topk_candidates, score_thresh=postprocessor_params.score_thresh)
+            self.postprocess = partial(nms, nms_thresh=postprocessor_params.nms_thresh, class_agnostic=postprocessor_params.class_agnostic)
         elif head_name == 'yolo_fastest_head':
-            # TODO: implement decoder and postprocessor
-            self.decode_outputs = partial(anchor_coupled_head_decode, topk_candidates=params.topk_candidates, score_thresh=params.score_thresh)
-            self.postprocess = partial(nms, nms_thresh=params.nms_thresh, class_agnostic=params.class_agnostic)
-
+            self.decode_outputs = partial(anchor_coupled_head_decode, topk_candidates=postprocessor_params.topk_candidates, score_thresh=postprocessor_params.score_thresh)
+            self.postprocess = partial(nms, nms_thresh=postprocessor_params.nms_thresh, class_agnostic=postprocessor_params.class_agnostic)
         else:
             self.decode_outputs = None
             self.postprocess = None

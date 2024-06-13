@@ -113,11 +113,17 @@ If you are interested in utilizing open datasets, you can use them by following 
 
 ### Semantic segmentation
 
+- [ADE20K](https://github.com/Nota-NetsPresso/netspresso-trainer/blob/dev/tools/open_dataset_tool/ade20k.py)
+- [Cityscapes](https://github.com/Nota-NetsPresso/netspresso-trainer/blob/dev/tools/open_dataset_tool/cityscapes.py)
 - [PascalVOC 2012](https://github.com/Nota-NetsPresso/netspresso-trainer/blob/dev/tools/open_dataset_tool/voc2012_seg.py)
 
 ### Object detection
 
 - [COCO 2017](https://github.com/Nota-NetsPresso/netspresso-trainer/blob/dev/tools/open_dataset_tool/coco2017.py)
+
+### Pose estimation
+
+- [WFLW](https://github.com/Nota-NetsPresso/netspresso-trainer/blob/dev/tools/open_dataset_tool/wflw.py)
 
 ## Dataset preparation (Huggingface)
 

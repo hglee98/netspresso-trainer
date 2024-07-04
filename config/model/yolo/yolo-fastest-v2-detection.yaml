@@ -34,7 +34,7 @@ model:
       # postprocessor - nms
       nms_thresh: 0.45
       class_agnostic: False
-  # Temporary loss to test the full YOLOFastestV2 model to work right
   losses:
-    - criterion: retinanet_loss
+    - criterion: yolo_fastest_loss
       weight: ~
+      l1_activate_epoch: 1

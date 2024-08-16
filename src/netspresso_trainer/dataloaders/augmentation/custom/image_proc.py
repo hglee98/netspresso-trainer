@@ -26,10 +26,10 @@ import torch
 import torchvision.transforms as T
 import torchvision.transforms.functional as F
 from torch import Tensor
+from torchvision.ops.boxes import box_iou
 from torchvision.transforms.autoaugment import _apply_op
 from torchvision.transforms.functional import InterpolationMode
 from torchvision.transforms.transforms import _check_sequence_input
-from torchvision.ops.boxes import box_iou
 
 BBOX_CROP_KEEP_THRESHOLD = 0.2
 MAX_RETRY = 5
@@ -491,7 +491,7 @@ class RandomIoUCrop:
         self.options = sampler_options
         self.trials = trials
         self.p = p
-    
+
     def __call__(self, image, label=None, mask=None, bbox=None, keypoint=None, dataset=None):
         if not isinstance(image, (torch.Tensor, Image.Image)):
             raise TypeError("Image should be Tensor or PIL.Image. Got {}".format(type(image)))
@@ -513,7 +513,7 @@ class RandomIoUCrop:
                     aspect_ratio = new_w / new_h
                     if not (self.min_aspect_ratio <= aspect_ratio <= self.max_aspect_ratio):
                         continue
-                    
+
                     # check for 0 area crops
                     r = torch.rand(2)
                     left = int((w - new_w) * r[0])
@@ -531,7 +531,7 @@ class RandomIoUCrop:
                     xyxy_bboxes = torch.tensor(xyxy_bboxes[is_within_crop_area])
                     ious = box_iou(
                         xyxy_bboxes,
-                        torch.tensor([[left, top, right, bottom]], dtype=xyxy_bboxes.dtype, 
+                        torch.tensor([[left, top, right, bottom]], dtype=xyxy_bboxes.dtype,
                                      device=xyxy_bboxes.device),)
                     if ious.max() < min_jaccard_overlap:
                         continue
@@ -568,7 +568,7 @@ class RandomZoomOut:
         self.padding_mode = 'constant'
         self.side_range = side_range
         self.p = p
-    
+
     def __call__(self, image, label=None, mask=None, bbox=None, keypoint=None, dataset=None):
         if not isinstance(image, (torch.Tensor, Image.Image)):
             raise TypeError("Image should be Tensor or PIL.Image. Got {}".format(type(image)))
@@ -577,7 +577,7 @@ class RandomZoomOut:
             w, h = image.size
         else:
             w, h = image.shape[-1], image.shape[-2]
-        
+
         if random.random() < self.p:
             r = self.side_range[0] + torch.rand(1) * (self.side_range[1] - self.side_range[0])
             canvas_width = int(w * r)
@@ -977,3 +977,56 @@ class ToTensor(T.ToTensor):
 
     def __repr__(self):
         return self.__class__.__name__ + "()"
+
+
+if __name__ == "__main__":
+    from pathlib import Path
+
+    from PIL import ImageDraw, ImageFont
+
+    from netspresso_trainer.dataloaders.utils.misc import get_detection_label
+
+    def xywhn2xyxy(original: np.ndarray, w: int, h: int, padw=0, padh=0):
+        converted = original.copy()
+        # left, top (lt)
+        converted[..., 0] = w * (original[..., 0] - original[..., 2] / 2) + padw
+        converted[..., 1] = h * (original[..., 1] - original[..., 3] / 2) + padh
+        # right, bottom (rb)
+        converted[..., 2] = w * (original[..., 0] + original[..., 2] / 2) + padw
+        converted[..., 3] = h * (original[..., 1] + original[..., 3] / 2) + padh
+
+        # bbox clamping
+        np.clip(converted[..., 0::2], a_min=0, a_max=w, out=converted[..., 0::2])
+        np.clip(converted[..., 1::2], a_min=0, a_max=h, out=converted[..., 1::2])
+        return converted
+
+    for idx in range(5):
+        img = Image.open("/workspace/rt-detr/netspresso-trainer/data/coco2017/images/valid/000000000139.jpg").convert('RGB')
+        ann_path = Path("/workspace/rt-detr/netspresso-trainer/data/coco2017/labels/valid/000000000139.txt")
+        ann = get_detection_label(Path(ann_path)) if ann_path is not None else None
+        labels, yolo_bboxes = ann
+        bboxes = xywhn2xyxy(yolo_bboxes, img.size[0], img.size[1])
+        zoomout = RandomZoomOut(fill=114, side_range=[1.0, 4.0], p=1.0)
+        ioucrop = RandomIoUCrop(min_scale=0.3, max_scale=1.0, min_aspect_ratio=0.5, max_aspect_ratio=2.0, p=1.0)
+        transformed_image, transformed_label, _, transformed_bboxes, _ = zoomout(img, label=labels, bbox=bboxes)
+        transformed_image, transformed_label, _, transformed_bboxes, _ = ioucrop(transformed_image, label=transformed_label, bbox=transformed_bboxes)
+        draw = ImageDraw.Draw(transformed_image)
+
+        width, height = transformed_image.size
+
+        try:
+            font = ImageFont.truetype("arial.ttf", 15)
+        except IOError:
+            font = ImageFont.load_default()
+
+        # 각 bounding box 그리기
+        for cls, bbox in zip(transformed_label, transformed_bboxes):
+            x1, y1, x2, y2 = bbox
+
+            # Bounding box 그리기
+            draw.rectangle([x1, y1, x2, y2], outline="green", width=2)
+
+            # 클래스 레이블 표시
+            label = f"Class: {int(cls)}"
+            draw.text((x1, y1 - 20), label, fill="green", font=font)
+        transformed_image.save(f"results/random_zoomout_ioucrop_cascaded_{idx}.png")

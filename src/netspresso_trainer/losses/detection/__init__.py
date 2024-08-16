@@ -15,5 +15,6 @@
 # ----------------------------------------------------------------------------
 
 from .retinanet import RetinaNetLoss
+from .rtdetr import DETRLoss
 from .yolo import YOLOFastestLoss
 from .yolox import YOLOXLoss

@@ -40,7 +40,7 @@ from ..utils.logger import yaml_for_logging
 from ..utils.model_ema import ModelEMA
 from ..utils.onnx import save_onnx
 from ..utils.record import Timer, TrainingSummary
-from ..utils.stats import get_params_and_macs
+from ..utils.stats import get_params_and_flops
 from .base import BasePipeline
 from .task_processors.base import BaseTaskProcessor
 
@@ -168,16 +168,21 @@ class TrainingPipeline(BasePipeline):
             if self.single_gpu_or_rank_zero:
                 self.logger.log_end_of_traning(final_metrics={'time_for_last_epoch': time_for_epoch})
                 self.save_best()
-                self.save_summary(end_training=True)
+                self.save_summary(end_training=True, status="success")
         except KeyboardInterrupt as e:
             # TODO: add independent procedure for KeyboardInterupt
             logger.error("Keyboard interrupt detected! Try saving the current checkpoint...")
             if self.single_gpu_or_rank_zero:
                 self.save_checkpoint(epoch=num_epoch)
                 self.save_best()
-                self.save_summary()
+                self.save_summary(status="stop")
             raise e
         except Exception as e:
+            logger.error("Error occurred! Try saving the current checkpoint...")
+            if self.single_gpu_or_rank_zero:
+                self.save_checkpoint(epoch=num_epoch)
+                self.save_best()
+                self.save_summary(status="error", error_stats=str(e))
             logger.error(str(e))
             raise e
 
@@ -257,6 +262,8 @@ class TrainingPipeline(BasePipeline):
     def save_best(self):
         valid_losses = {epoch: record['valid_losses'].get('total') for epoch, record in self.training_history.items()
                 if 'valid_losses' in record}
+        if not valid_losses:
+            return # No validation loss recorded
         best_epoch = min(valid_losses, key=valid_losses.get)
 
         logging_dir = self.logger.result_dir
@@ -290,7 +297,7 @@ class TrainingPipeline(BasePipeline):
             logger.error(e)
             pass
 
-    def save_summary(self, end_training=False):
+    def save_summary(self, end_training=False, status="", error_stats=""):
         training_summary = TrainingSummary(
             total_epoch=self.conf.training.epochs,
             train_losses={epoch: record['train_losses'].get('total') for epoch, record in self.training_history.items()},
@@ -304,12 +311,14 @@ class TrainingPipeline(BasePipeline):
         )
         if end_training:
             total_train_time = self.timer.get(name='train_all', as_pop=True)
-            macs, params = get_params_and_macs(self.model, self.sample_input.float())
-            logger.info(f"[Model stats] Params: {(params/1e6):.2f}M | MACs: {(macs/1e9):.2f}G")
+            flops, params = get_params_and_flops(self.model, self.sample_input.float())
+            logger.info(f"[Model stats] Params: {(params/1e6):.2f}M | FLOPs: {(flops/1e9):.2f}G")
             training_summary.total_train_time = total_train_time
-            training_summary.macs = macs
+            training_summary.flops = flops
             training_summary.params = params
-            training_summary.success = True
+
+        training_summary.status = status
+        training_summary.error_stats = error_stats
 
         logging_dir = self.logger.result_dir
         summary_path = Path(logging_dir) / "training_summary.json"

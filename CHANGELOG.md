@@ -2,8 +2,31 @@
 
 ## New Features:
 
+- Add RT-DETR by `@illian01` and `@hglee98` in [PR 490](https://github.com/Nota-NetsPresso/netspresso-trainer/pull/490), [PR 491](https://github.com/Nota-NetsPresso/netspresso-trainer/pull/491), [PR 494](https://github.com/Nota-NetsPresso/netspresso-trainer/pull/494), [PR 498](https://github.com/Nota-NetsPresso/netspresso-trainer/pull/498#pullrequestreview-2234711140), [PR 500](https://github.com/Nota-NetsPresso/netspresso-trainer/pull/500)
+- Add Objects365 dataset auto downloader by `@hglee98` in [PR 482](https://github.com/Nota-NetsPresso/netspresso-trainer/pull/482)
+- Add ResNet model parameters to support various form by `@illian01` in [PR 497](https://github.com/Nota-NetsPresso/netspresso-trainer/pull/497)
+
+## Bug Fixes:
+
+- Fix handling error in case of error occured in first epoch by `@illian01` in [PR 493](https://github.com/Nota-NetsPresso/netspresso-trainer/pull/493)
+- Fix error in FLOPs computation by `@illian01` in [PR 499](https://github.com/Nota-NetsPresso/netspresso-trainer/pull/499)
+
+## Breaking Changes:
+
+No changes to highlight.
+
+## Other Changes:
+
+- Update pi 4b deployment benchmark by `@illian01` in [PR 492](https://github.com/Nota-NetsPresso/netspresso-trainer/pull/492)
+
+# v1.0.0
+
+## New Features:
+
 - Add YOLOX-nano and YOLOX-tiny by `@hglee98` in [PR 467](https://github.com/Nota-NetsPresso/netspresso-trainer/pull/467)
 - Separate postprocessor configuration hierarchy by `@hglee98` in [PR 470](https://github.com/Nota-NetsPresso/netspresso-trainer/pull/470)
+- Add YOLO-Fastest by `@hglee98` in [PR 471](https://github.com/Nota-NetsPresso/netspresso-trainer/pull/471)
+- Write detailed status on training_summary by `@illian01` in [PR 487](https://github.com/Nota-NetsPresso/netspresso-trainer/pull/487)
 
 ## Bug Fixes:
 
@@ -18,6 +41,7 @@ No changes to highlight.
 - Change attention bias interpolate method by `@illian01` in [PR 468](https://github.com/Nota-NetsPresso/netspresso-trainer/pull/468)
 - Fix ViT token number in positional encoding for torch.fx compile step by `@illian01` in [PR 475](https://github.com/Nota-NetsPresso/netspresso-trainer/pull/475)
 - Remove output typing of PIDNet by `@illian01` in [PR 477](https://github.com/Nota-NetsPresso/netspresso-trainer/pull/477)
+- Update documentation by `@illian01` in [PR 483](https://github.com/Nota-NetsPresso/netspresso-trainer/pull/483), [PR 485](https://github.com/Nota-NetsPresso/netspresso-trainer/pull/485)
 
 # v0.2.2
 

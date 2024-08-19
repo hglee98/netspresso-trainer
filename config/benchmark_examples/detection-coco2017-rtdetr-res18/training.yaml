@@ -1,6 +1,7 @@
 training:
   epochs: 72
   mixed_precision: true
+  max_norm: 0.1
   ema:
     name: exp_decay
     decay: 0.9999

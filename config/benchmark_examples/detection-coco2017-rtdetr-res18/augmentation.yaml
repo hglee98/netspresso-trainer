@@ -1,0 +1,52 @@
+augmentation:
+  train:
+  -
+    name: colorjitter
+    brightness: 0.125
+    contrast: 0.5
+    saturation: 0.5
+    hue: 0.05
+    p: 0.5
+  -
+    name: randomzoomout
+    fill: 0
+    side_range: [1.0, 4.0]
+    p: 0.5
+  -
+    name: randomioucrop
+    min_scale: 0.3
+    max_scale: 1.0
+    min_aspect_ratio: 0.5
+    max_aspect_ratio: 2.0
+    p: 0.2
+  -
+    name: randomhorizontalflip
+    p: 0.5
+  -
+    name: resize
+    size: 640
+    interpolation: bilinear
+    max_size: ~
+    resize_criteria: long
+  -
+    name: pad
+    size: 640
+    fill: 0
+  -
+    name: randomresize
+    base_size: [640, 640]
+    stride: 32
+    random_range: [0, 10]
+    interpolation: bilinear
+
+  inference:
+    -
+      name: resize
+      size: 640
+      interpolation: bilinear
+      max_size: ~
+      resize_criteria: long
+    -
+      name: pad
+      size: 640
+      fill: 0

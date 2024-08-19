@@ -106,6 +106,11 @@ def build_pipeline(
         if conf.training.ema:
             model_ema = build_ema(model=model.module if hasattr(model, 'module') else model, conf=conf)
 
+        # Set Gradient Clipping
+        model_max_norm = None
+        if conf.training.max_norm:
+            model_max_norm = conf.training.max_norm
+
         # Build logger
         single_gpu_or_rank_zero = (not conf.distributed) or (conf.distributed and dist.get_rank() == 0)
         train_step_per_epoch = len(train_dataloader)
@@ -134,6 +139,7 @@ def build_pipeline(
                                             single_gpu_or_rank_zero=single_gpu_or_rank_zero,
                                             is_graphmodule_training=is_graphmodule_training,
                                             model_ema=model_ema,
+                                            model_max_norm=model_max_norm,
                                             start_epoch=start_epoch,
                                             cur_epoch=cur_epoch,
                                             profile=profile)

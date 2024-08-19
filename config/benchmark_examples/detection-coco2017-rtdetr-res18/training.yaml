@@ -2,7 +2,7 @@ training:
   epochs: 72
   mixed_precision: true
   ema:
-    name: exp_dacay
+    name: exp_decay
     decay: 0.9999
     beta: 2000
   optimizer:

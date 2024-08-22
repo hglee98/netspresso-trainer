@@ -1,5 +1,5 @@
 training:
-  epochs: 72
+  epochs: 125
   mixed_precision: true
   max_norm: 0.1
   ema:

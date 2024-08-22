@@ -9,7 +9,7 @@ augmentation:
     p: 0.5
   -
     name: randomzoomout
-    fill: 114
+    fill: 0
     side_range: [1.0, 4.0]
     p: 0.5
   -
@@ -31,12 +31,12 @@ augmentation:
   -
     name: pad
     size: 640
-    fill: 114
+    fill: 0
   -
     name: randomresize
     base_size: [640, 640]
     stride: 32
-    random_range: [0, 10]
+    random_range: 5
     interpolation: bilinear
 
   inference:
@@ -49,4 +49,4 @@ augmentation:
     -
       name: pad
       size: 640
-      fill: 114
+      fill: 0

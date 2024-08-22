@@ -24,14 +24,10 @@ augmentation:
     p: 0.5
   -
     name: resize
-    size: 640
+    size: [640, 640]
     interpolation: bilinear
     max_size: ~
     resize_criteria: long
-  -
-    name: pad
-    size: 640
-    fill: 0
   -
     name: randomresize
     base_size: [640, 640]
@@ -42,11 +38,7 @@ augmentation:
   inference:
     -
       name: resize
-      size: 640
+      size: [640, 640]
       interpolation: bilinear
       max_size: ~
       resize_criteria: long
-    -
-      name: pad
-      size: 640
-      fill: 0

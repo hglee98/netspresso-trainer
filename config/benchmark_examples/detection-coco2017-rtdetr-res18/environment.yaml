@@ -2,4 +2,4 @@ environment:
   seed: 1
   num_workers: 4
   gpus: 0,1,2,3
-  batch_size: 8 # Batch size per gpu
+  batch_size: 4 # Batch size per gpu

@@ -19,6 +19,7 @@ https://github.com/lyuwenyu/RT-DETR/blob/main/rtdetr_pytorch/src/zoo/rtdetr/deno
 """
 
 import torch
+import copy
 
 
 def inverse_sigmoid(x: torch.Tensor, eps: float=1e-5) -> torch.Tensor:
@@ -69,9 +70,9 @@ def get_contrastive_denoising_training_group(targets,
     for i in range(bs):
         num_gt = num_gts[i]
         if num_gt > 0:
-            boxes = box_xyxy_to_cxcywh(targets[i]['boxes'])
-            input_query_class[i, :num_gt] = targets[i]['labels']
-            input_query_bbox[i, :num_gt] = boxes
+            box = box_xyxy_to_cxcywh(copy.deepcopy(targets[i]['boxes']))
+            input_query_class[i, :num_gt] = copy.deepcopy(targets[i]['labels'])
+            input_query_bbox[i, :num_gt] = box
             pad_gt_mask[i, :num_gt] = 1
     # each group has positive and negative queries.
     input_query_class = input_query_class.tile([1, 2 * num_group])

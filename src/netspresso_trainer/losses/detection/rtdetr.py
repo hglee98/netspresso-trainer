@@ -19,12 +19,14 @@ https://github.com/lyuwenyu/RT-DETR/blob/main/rtdetr_pytorch/src/zoo/rtdetr/rtde
 https://github.com/lyuwenyu/RT-DETR/blob/main/rtdetr_pytorch/src/zoo/rtdetr/matcher.py
 """
 
+import copy
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision
 from scipy.optimize import linear_sum_assignment
 from torchvision.ops.boxes import box_area
+from .misc import *
 
 
 def box_iou(boxes1, boxes2):
@@ -100,7 +102,7 @@ class HungarianMatcher(nn.Module):
 
         # We flatten to compute the cost matrices in a batch
         if self.use_focal_loss:
-            out_prob = F.sigmoid(outputs["pred_logits"].flatten(0, 1))
+            out_prob = torch.sigmoid(outputs["pred_logits"].flatten(0, 1))
         else:
             out_prob = outputs["pred_logits"].flatten(0, 1).softmax(-1)  # [batch_size * num_queries, num_classes]
 
@@ -115,8 +117,8 @@ class HungarianMatcher(nn.Module):
         # The 1 is a constant that doesn't change the matching, it can be ommitted.
         if self.use_focal_loss:
             out_prob = out_prob[:, tgt_ids]
-            neg_cost_class = (1 - self.alpha) * (out_prob**self.gamma) * (-(1 - out_prob + self.EPS).log())
-            pos_cost_class = self.alpha * ((1 - out_prob)**self.gamma) * (-(out_prob + self.EPS).log())
+            neg_cost_class = (1 - self.alpha) * (out_prob**self.gamma) * (-(1 - out_prob + 1e-8).log())
+            pos_cost_class = self.alpha * ((1 - out_prob)**self.gamma) * (-(out_prob + 1e-8).log())
             cost_class = pos_cost_class - neg_cost_class
         else:
             cost_class = -out_prob[:, tgt_ids]
@@ -143,8 +145,6 @@ class DETRLoss(nn.Module):
         1) we compute hungarian assignment between ground truth boxes and the outputs of the model
         2) we supervise each pair of matched ground-truth / prediction (supervise class and box)
     """
-    __share__ = ['num_classes', ]
-    __inject__ = ['matcher', ]
 
     def __init__(self, matcher, weight_dict, losses, alpha=0.2, gamma=2.0, cur_epoch=None, **kwargs):
         """ Create the criterion.
@@ -163,7 +163,6 @@ class DETRLoss(nn.Module):
 
         self.alpha = alpha
         self.gamma = gamma
-
 
     def loss_labels(self, outputs, targets, indices, num_boxes, log=True):
         """Classification loss (NLL)
@@ -186,19 +185,6 @@ class DETRLoss(nn.Module):
             losses['class_error'] = 100 - accuracy(src_logits[idx], target_classes_o)[0]
         return losses
 
-    def loss_labels_bce(self, outputs, targets, indices, num_boxes, log=True):
-        src_logits = outputs['pred_logits']
-        idx = self._get_src_permutation_idx(indices)
-        target_classes_o = torch.cat([t["labels"][J] for t, (_, J) in zip(targets, indices)])
-        target_classes = torch.full(src_logits.shape[:2], self.num_classes,
-                                    dtype=torch.int64, device=src_logits.device)
-        target_classes[idx] = target_classes_o
-
-        target = F.one_hot(target_classes, num_classes=self.num_classes + 1)[..., :-1]
-        loss = F.binary_cross_entropy_with_logits(src_logits, target * 1., reduction='none')
-        loss = loss.mean(1).sum() * src_logits.shape[1] / num_boxes
-        return {'loss_bce': loss}
-
     def loss_labels_focal(self, outputs, targets, indices, num_boxes, log=True):
         assert 'pred_logits' in outputs
         src_logits = outputs['pred_logits']
@@ -210,12 +196,6 @@ class DETRLoss(nn.Module):
         target_classes[idx] = target_classes_o
 
         target = F.one_hot(target_classes, num_classes=self.num_classes+1)[..., :-1]
-        # ce_loss = F.binary_cross_entropy_with_logits(src_logits, target * 1., reduction="none")
-        # prob = F.sigmoid(src_logits) # TODO .detach()
-        # p_t = prob * target + (1 - prob) * (1 - target)
-        # alpha_t = self.alpha * target + (1 - self.alpha) * (1 - target)
-        # loss = alpha_t * ce_loss * ((1 - p_t) ** self.gamma)
-        # loss = loss.mean(1).sum() * src_logits.shape[1] / num_boxes
         loss = torchvision.ops.sigmoid_focal_loss(src_logits, target, self.alpha, self.gamma, reduction='none')
         loss = loss.mean(1).sum() * src_logits.shape[1] / num_boxes
 
@@ -241,7 +221,7 @@ class DETRLoss(nn.Module):
         target_score_o[idx] = ious.to(target_score_o.dtype)
         target_score = target_score_o.unsqueeze(-1) * target
 
-        pred_score = F.sigmoid(src_logits).detach()
+        pred_score = torch.sigmoid(src_logits).detach()
         weight = self.alpha * pred_score.pow(self.gamma) * (1 - target) + target_score
 
         loss = F.binary_cross_entropy_with_logits(src_logits, target_score, weight=weight, reduction='none')
@@ -282,35 +262,6 @@ class DETRLoss(nn.Module):
         losses['loss_giou'] = loss_giou.sum() / num_boxes
         return losses
 
-    # def loss_masks(self, outputs, targets, indices, num_boxes):
-    #     """Compute the losses related to the masks: the focal loss and the dice loss.
-    #        targets dicts must contain the key "masks" containing a tensor of dim [nb_target_boxes, h, w]
-    #     """
-    #     assert "pred_masks" in outputs
-
-    #     src_idx = self._get_src_permutation_idx(indices)
-    #     tgt_idx = self._get_tgt_permutation_idx(indices)
-    #     src_masks = outputs["pred_masks"]
-    #     src_masks = src_masks[src_idx]
-    #     masks = [t["masks"] for t in targets]
-    #     # TODO use valid to mask invalid areas due to padding in loss
-    #     target_masks, valid = nested_tensor_from_tensor_list(masks).decompose()
-    #     target_masks = target_masks.to(src_masks)
-    #     target_masks = target_masks[tgt_idx]
-
-    #     # upsample predictions to the target size
-    #     src_masks = interpolate(src_masks[:, None], size=target_masks.shape[-2:],
-    #                             mode="bilinear", align_corners=False)
-    #     src_masks = src_masks[:, 0].flatten(1)
-
-    #     target_masks = target_masks.flatten(1)
-    #     target_masks = target_masks.view(src_masks.shape)
-    #     losses = {
-    #         "loss_mask": sigmoid_focal_loss(src_masks, target_masks, num_boxes),
-    #         "loss_dice": dice_loss(src_masks, target_masks, num_boxes),
-    #     }
-    #     return losses
-
     def _get_src_permutation_idx(self, indices):
         # permute predictions following indices
         batch_idx = torch.cat([torch.full_like(src, i) for i, (src, _) in enumerate(indices)])
@@ -326,11 +277,8 @@ class DETRLoss(nn.Module):
     def get_loss(self, loss, outputs, targets, indices, num_boxes, **kwargs):
         loss_map = {
             'labels': self.loss_labels,
-            'cardinality': self.loss_cardinality,
             'boxes': self.loss_boxes,
-            # 'masks': self.loss_masks,
-
-            'bce': self.loss_labels_bce,
+            'cardinality': self.loss_cardinality,
             'focal': self.loss_labels_focal,
             'vfl': self.loss_labels_vfl,
         }
@@ -345,13 +293,14 @@ class DETRLoss(nn.Module):
                       The expected keys in each dict depends on the losses applied, see each loss' doc
         """
         self.num_classes = targets['num_classes']
-        img_size = targets['img_size']
-        outputs = {'pred_boxes': out['pred'][..., :4], 'pred_logits': out['pred'][..., 4:], 'aux_outputs': out['aux_pred'], 'dn_aux_outputs': out['dn_aux_pred'], 'dn_meta': out['dn_meta']}
         empty_weight = torch.ones(self.num_classes + 1)
         empty_weight[-1] = 1e-4
         self.register_buffer('empty_weight', empty_weight)
+        img_size = targets['img_size']
+        outputs = {'pred_boxes': out['pred'][..., :4], 'pred_logits': out['pred'][..., 4:], 'aux_outputs': out['aux_pred'], 'dn_aux_outputs': out['dn_aux_pred'], 'dn_meta': out['dn_meta']}
+        
 
-        targets = targets['gt']
+        targets = copy.deepcopy(targets['gt'])
         # Normalize bounding boxes
         for idx, t in enumerate(targets):
             normalized_bboxes = self.normalize_bboxes(t['boxes'], img_size)
@@ -365,9 +314,9 @@ class DETRLoss(nn.Module):
         # Compute the average number of target boxes accross all nodes, for normalization purposes
         num_boxes = sum(len(t["labels"]) for t in targets)
         num_boxes = torch.as_tensor([num_boxes], dtype=torch.float, device=next(iter(outputs.values())).device)
-        # if is_dist_available_and_initialized():
-        #     torch.distributed.all_reduce(num_boxes)
-        # num_boxes = torch.clamp(num_boxes / get_world_size(), min=1).item()
+        if is_dist_available_and_initialized():
+            torch.distributed.all_reduce(num_boxes)
+        num_boxes = torch.clamp(num_boxes / get_world_size(), min=1).item()
 
         # Compute all the requested losses
         losses = {}
@@ -446,7 +395,7 @@ class DETRLoss(nn.Module):
         else:
             h, w = img_size
         scale = torch.tensor([w, h, w, h], dtype=bboxes.dtype, device=bboxes.device)
-        return bboxes / scale
+        return bboxes / scale.unsqueeze(0)
 
 
 @torch.no_grad()

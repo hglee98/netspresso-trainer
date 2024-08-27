@@ -18,7 +18,7 @@ augmentation:
     max_scale: 1.0
     min_aspect_ratio: 0.5
     max_aspect_ratio: 2.0
-    p: 0.2
+    p: 0.8
   -
     name: randomhorizontalflip
     p: 0.5
@@ -33,7 +33,7 @@ augmentation:
     base_size: [640, 640]
     stride: 32
     random_range: 5
-    interpolation: bilinear
+    interpolation: nearest
 
   inference:
     -

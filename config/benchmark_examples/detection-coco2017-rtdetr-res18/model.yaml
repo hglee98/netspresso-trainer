@@ -1,8 +1,8 @@
 model:
   task: detection
-  name: rtdetr_res18
+  name: resnet18
   checkpoint:
-    use_pretrained: False
+    use_pretrained: True
     load_head: False
     path: ~
     fx_model_path: ~
@@ -16,8 +16,8 @@ model:
         block_type: basicblock
         norm_type: batch_norm
         return_stage_idx: [1, 2, 3]
-        split_stem_conv: True
-        first_stage_shortcut_conv: True
+        split_stem_conv: False
+        first_stage_shortcut_conv: False
       stage_params:
         - 
           channels: 64
@@ -26,17 +26,17 @@ model:
           channels: 128
           num_blocks: 2
           replace_stride_with_dilation: False
-          replace_stride_with_pooling: True
+          replace_stride_with_pooling: False
         - 
           channels: 256
           num_blocks: 2
           replace_stride_with_dilation: False
-          replace_stride_with_pooling: True
+          replace_stride_with_pooling: False
         - 
           channels: 512
           num_blocks: 2
           replace_stride_with_dilation: False
-          replace_stride_with_pooling: True
+          replace_stride_with_pooling: False
     neck:
       name: rtdetr_hybrid_encoder
       params:
@@ -60,7 +60,7 @@ model:
         num_queries: 300
         eps: 1e-2
         num_decoder_layers: 3
-        eval_spatial_size: ~
+        eval_spatial_size: [640, 640]
         position_embed_type: sine
         num_decoder_points: 4
         dim_feedforward: 1024

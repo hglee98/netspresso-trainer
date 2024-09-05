@@ -633,10 +633,10 @@ class RTDETRTransformer(nn.Module):
         out = torch.cat([out_bboxes[-1], out_logits[-1]], dim=-1)
 
         if self.training and self.use_aux_loss:
-            aux_outputs = self._set_aux_loss(out_logits[:-1], out_bboxes[:-1])
-            aux_outputs.extend(self._set_aux_loss([enc_topk_logits], [enc_topk_bboxes]))
+            aux_outputs = self._set_output_aux_loss(out_logits[:-1], out_bboxes[:-1])
+            aux_outputs.extend(self._set_enc_topk_aux_loss(enc_topk_logits, enc_topk_bboxes))
             if self.training and dn_meta is not None:
-                dn_aux_outputs = self._set_aux_loss(dn_out_logits, dn_out_bboxes)
+                dn_aux_outputs = self._set_dn_aux_loss(dn_out_logits, dn_out_bboxes)
             else:
                 dn_aux_outputs = None
         else:
@@ -645,9 +645,14 @@ class RTDETRTransformer(nn.Module):
         
         return ModelOutput(pred=out, aux_pred=aux_outputs, dn_aux_pred=dn_aux_outputs, dn_meta=dn_meta)
 
-    def _set_aux_loss(self, outputs_class, outputs_coord):
-        return [{'pred_logits': a, 'pred_boxes': b}
-                for a, b in zip(outputs_class, outputs_coord)]
+    def _set_output_aux_loss(self, outputs_class, outputs_coord):
+        return [{'pred_logits': outputs_class[idx], 'pred_boxes': outputs_coord[idx]} for idx in range(self.num_levels - 1)]
+    
+    def _set_enc_topk_aux_loss(self, enc_topk_class, enc_topk_coord):
+        return [{'pred_logits': enc_topk_class, 'pred_boxes': enc_topk_coord}]
+    
+    def _set_dn_aux_loss(self, dn_outputs_class, dn_outputs_coord):
+        return [{'pred_logits': dn_outputs_class[idx], 'pred_boxes': dn_outputs_coord[idx]} for idx in range(self.num_levels)]
     
     def normalize_bboxes(self, bboxes, img_size):
         """ Normalize bounding boxes to [0, 1] range """

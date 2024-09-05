@@ -555,8 +555,8 @@ class RTDETRTransformer(nn.Module):
 
         enc_outputs_class = self.enc_score_head(output_memory)
         enc_outputs_coord_unact = self.enc_bbox_head(output_memory) + anchors
-
-        _, topk_ind = torch.topk(enc_outputs_class.max(-1).values, self.num_queries, dim=1)
+        input_max, _ = torch.max(enc_outputs_class, dim=-1)
+        _, topk_ind = torch.topk(input_max, self.num_queries, dim=1)
         
         reference_points_unact = enc_outputs_coord_unact.gather(dim=1, \
             index=topk_ind.unsqueeze(-1).repeat(1, 1, enc_outputs_coord_unact.shape[-1]))

@@ -492,10 +492,10 @@ class RTDETRTransformer(nn.Module):
         feat_flatten = []
         spatial_shapes = []
         level_start_index = [0, ]
-        for i, feat in enumerate(proj_feats):
-            _, _, h, w = feat.shape
+        for i in range(self.num_levels):
+            _, _, h, w = proj_feats[i].shape
             # [b, c, h, w] -> [b, h*w, c]
-            feat_flatten.append(feat.flatten(2).permute(0, 2, 1))
+            feat_flatten.append(proj_feats[i].flatten(2).permute(0, 2, 1))
             # [num_levels, 2]
             spatial_shapes.append([h, w])
             # [l], start index of each level

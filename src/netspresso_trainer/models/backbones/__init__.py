@@ -25,3 +25,4 @@ from .experimental.mobilenetv4 import mobilenetv4
 from .experimental.mobilevit import mobilevit
 from .experimental.shufflenetv2 import shufflenetv2
 from .experimental.vit import vit
+from .experimental.gelan import gelan

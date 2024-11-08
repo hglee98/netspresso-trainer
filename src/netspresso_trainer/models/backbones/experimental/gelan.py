@@ -25,11 +25,11 @@ from ...op.custom import ConvLayer, CSPLayer, ELAN, AConv
 from ...utils import BackboneOutput
 from ..registry import USE_INTERMEDIATE_FEATURES_TASK_LIST
 
-__all__ = ["repncsp_elan"]
+__all__ = ["gelan"]
 SUPPORTING_TASK = ['classification', 'detection']
 
 
-class RepNCSPELAN(nn.Module):
+class GELAN(nn.Module):
     def __init__(
         self,
         task: str,
@@ -151,5 +151,5 @@ class RepNCSPELAN(nn.Module):
         return task.lower() in SUPPORTING_TASK
 
 
-def repncsp_elan(task, conf_model_backbone) -> RepNCSPELAN:
-    return RepNCSPELAN(task, conf_model_backbone.params, conf_model_backbone.stage_params)
+def gelan(task, conf_model_backbone) -> GELAN:
+    return GELAN(task, conf_model_backbone.params, conf_model_backbone.stage_params)

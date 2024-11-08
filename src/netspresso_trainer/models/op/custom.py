@@ -171,6 +171,69 @@ class SeparableConvLayer(nn.Module):
         x = self.final_act(x)
         return x
 
+class RepConv(nn.Module):
+    """
+    A convolutional block that combines two convolution layers (kernel and point-wise conv).
+    """
+    def __init__(self,
+                 in_channels: int,
+                 out_channels: int,
+                 kernel_size: Union[int, Tuple[int, int]] = 3,
+                 act_type: Optional[str] = None,):
+        if act_type is None:
+            act_type = 'silu'
+        super().__init__()
+        assert isinstance(in_channels, int)
+        assert isinstance(out_channels, int)
+        assert isinstance(act_type, str)
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.conv1 = ConvLayer(in_channels, out_channels, kernel_size, use_act=False)
+        self.conv2 = ConvLayer(in_channels, out_channels, 1, use_act=False)
+
+        assert act_type in ACTIVATION_REGISTRY
+        self.act = ACTIVATION_REGISTRY[act_type]()
+
+    def forward(self, x: Union[Tensor, Proxy]) -> Union[Tensor, Proxy]:
+        y = self.conv(x) if hasattr(self, 'conv') else self.conv1(x) + self.conv2(x)
+
+        return self.act(y)
+
+    def convert_to_deploy(self):
+        if not hasattr(self, 'conv'):
+            self.conv = nn.Conv2d(self.in_channels, self.out_channels, kernel_size=3, stride=1, padding=1)
+
+        kernel, bias = self.get_equivalent_kernel_bias()
+        self.conv.weight.data = kernel
+        self.conv.bias.data = bias
+        # self.__delattr__('conv1')
+        # self.__delattr__('conv2')
+
+    def get_equivalent_kernel_bias(self):
+        kernel3x3, bias3x3 = self._fuse_bn_tensor(self.conv1)
+        kernel1x1, bias1x1 = self._fuse_bn_tensor(self.conv2)
+
+        return kernel3x3 + self._pad_1x1_to_3x3_tensor(kernel1x1), bias3x3 + bias1x1
+
+    def _pad_1x1_to_3x3_tensor(self, kernel1x1):
+        if kernel1x1 is None:
+            return 0
+        else:
+            return nn.functional.pad(kernel1x1, [1, 1, 1, 1])
+
+    def _fuse_bn_tensor(self, branch: ConvLayer):
+        if branch is None:
+            return 0, 0
+        kernel = branch.block.conv.weight
+        running_mean = branch.block.norm.running_mean
+        running_var = branch.block.norm.running_var
+        gamma = branch.block.norm.weight
+        beta = branch.block.norm.bias
+        eps = branch.block.norm.eps
+        std = (running_var + eps).sqrt()
+        t = (gamma / std).reshape(-1, 1, 1, 1)
+        return kernel * t, beta - running_mean * gamma / std
+
 
 class Pool(nn.Module):
     def __init__(self,
@@ -737,6 +800,32 @@ class CSPLayer(nn.Module):
         x = torch.cat((x_1, x_2), dim=1)
         return self.conv3(x)
 
+
+class CSPRepLayer(nn.Module):
+    def __init__(self,
+                 in_channels: int,
+                 out_channels: int,
+                 num_blocks: int=3,
+                 expansion: float=1.0,
+                 bias: bool= False,
+                 act: str="silu"):
+        super(CSPRepLayer, self).__init__()
+        hidden_channels = int(out_channels * expansion)
+        self.conv1 = ConvLayer(in_channels, hidden_channels, kernel_size=1, stride=1, bias=bias, act_type=act)
+        self.conv2 = ConvLayer(in_channels, hidden_channels, kernel_size=1, stride=1, bias=bias, act_type=act)
+        self.bottlenecks = nn.Sequential(*[
+            RepConv(hidden_channels, hidden_channels, act_type=act) for _ in range(num_blocks)
+        ])
+        if hidden_channels != out_channels:
+            self.conv3 = ConvLayer(hidden_channels, out_channels, kernel_size=1, stride=1, bias=bias, act_type=act)
+        else:
+            self.conv3 = nn.Identity()
+
+    def forward(self, x):
+        x_1 = self.conv1(x)
+        x_1 = self.bottlenecks(x_1)
+        x_2 = self.conv2(x)
+        return self.conv3(x_1 + x_2)
 
 class SPPBottleneck(nn.Module):
     """Spatial pyramid pooling layer used in YOLOv3-SPP"""

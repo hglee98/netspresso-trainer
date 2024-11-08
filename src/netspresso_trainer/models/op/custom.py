@@ -980,6 +980,9 @@ class ELAN(nn.Module):
         x5 = self.conv4(torch.cat([x1, x2, x3, x4], dim=1))
         return x5
 
+class RepNCSPELAN(nn.Module):
+    def __init__(self):
+        super().__init__()
 
 class AConv(nn.Module):
     def __init__(

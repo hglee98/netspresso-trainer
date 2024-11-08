@@ -373,7 +373,7 @@ class RepNBottleneck(nn.Module):
         super().__init__()
         if isinstance(kernel_size, int):
             kernel_size = (kernel_size, kernel_size)
-        
+
         hidden_channels = int(out_channels * expansion)
         self.conv1 = RepConv(in_channels, hidden_channels, kernel_size[0], act_type=act_type)
         self.conv2 = ConvLayer(hidden_channels, out_channels, kernel_size[1], act_type=act_type)
@@ -382,7 +382,7 @@ class RepNBottleneck(nn.Module):
         if residual and (in_channels != out_channels):
             self.residual = False
             warnings.warn(f"Residual connection disabled: in_channels ({in_channels}) != out_channels ({out_channels})", stacklevel=2)
-    
+
     def forward(self, x: Union[Tensor, Proxy]) -> Union[Tensor, Proxy]:
         y = self.conv2(self.conv1(x))
         return x + y if self.residual else y

@@ -362,6 +362,32 @@ class Bottleneck(nn.Module):
         return out
 
 
+class RepNBottleneck(nn.Module):
+    def __init__(self,
+                 in_channels: int,
+                 out_channels: int,
+                 kernel_size: Optional[Union[int, Tuple[int, int]]] = (3, 3),
+                 residual: bool = True,
+                 expansion: float = 1.0,
+                 act_type: Optional[str] = None):
+        super().__init__()
+        if isinstance(kernel_size, int):
+            kernel_size = (kernel_size, kernel_size)
+        
+        hidden_channels = int(out_channels * expansion)
+        self.conv1 = RepConv(in_channels, hidden_channels, kernel_size[0], act_type=act_type)
+        self.conv2 = ConvLayer(hidden_channels, out_channels, kernel_size[1], act_type=act_type)
+        self.residual = residual
+
+        if residual and (in_channels != out_channels):
+            self.residual = False
+            warnings.warn(f"Residual connection disabled: in_channels ({in_channels}) != out_channels ({out_channels})", stacklevel=2)
+    
+    def forward(self, x: Union[Tensor, Proxy]) -> Union[Tensor, Proxy]:
+        y = self.conv2(self.conv1(x))
+        return x + y if self.residual else y
+
+
 class InvertedResidual(nn.Module):
     # Implemented as described at section 5 of MobileNetV3 paper
     def __init__(

@@ -179,7 +179,8 @@ class RepConv(nn.Module):
                  in_channels: int,
                  out_channels: int,
                  kernel_size: Union[int, Tuple[int, int]] = 3,
-                 act_type: Optional[str] = None,):
+                 act_type: Optional[str] = None,
+                 **kwargs):
         if act_type is None:
             act_type = 'silu'
         super().__init__()
@@ -366,26 +367,32 @@ class RepNBottleneck(nn.Module):
     def __init__(self,
                  in_channels: int,
                  out_channels: int,
-                 kernel_size: Optional[Union[int, Tuple[int, int]]] = (3, 3),
-                 residual: bool = True,
+                 shortcut: bool = True,
                  expansion: float = 1.0,
+                 depthwise: bool = False,
                  act_type: Optional[str] = None):
         super().__init__()
-        if isinstance(kernel_size, int):
-            kernel_size = (kernel_size, kernel_size)
-
         hidden_channels = int(out_channels * expansion)
-        self.conv1 = RepConv(in_channels, hidden_channels, kernel_size[0], act_type=act_type)
-        self.conv2 = ConvLayer(hidden_channels, out_channels, kernel_size[1], act_type=act_type)
-        self.residual = residual
+        self.conv1 = RepConv(in_channels, hidden_channels, 3, act_type=act_type)
+        if depthwise:
+            self.conv2 = SeparableConvLayer(hidden_channels,
+                                            out_channels,
+                                            kernel_size=3, stride=1,
+                                            act_type=act_type)
+        else:
+            self.conv2 = ConvLayer(hidden_channels,
+                                   out_channels,
+                                   kernel_size=3, stride=1,
+                                   act_type=act_type)
+        self.shortcut = shortcut
 
-        if residual and (in_channels != out_channels):
-            self.residual = False
+        if shortcut and (in_channels != out_channels):
+            self.shortcut = False
             warnings.warn(f"Residual connection disabled: in_channels ({in_channels}) != out_channels ({out_channels})", stacklevel=2)
 
     def forward(self, x: Union[Tensor, Proxy]) -> Union[Tensor, Proxy]:
         y = self.conv2(self.conv1(x))
-        return x + y if self.residual else y
+        return x + y if self.shortcut else y
 
 
 class InvertedResidual(nn.Module):
@@ -781,6 +788,7 @@ class CSPLayer(nn.Module):
         expansion=0.5,
         depthwise=False,
         act_type="silu",
+        layer_type: Optional[str] = "csp",
     ):
         """
         Args:
@@ -790,6 +798,8 @@ class CSPLayer(nn.Module):
         """
         # ch_in, ch_out, number, shortcut, groups, expansion
         super().__init__()
+        VALID_LAYER_TYPE = ["csp", "csprep", "repncsp"]
+        assert layer_type.lower() in VALID_LAYER_TYPE, f"Invalid layer_type: '{layer_type}'. Must be one of {VALID_LAYER_TYPE}"
         hidden_channels = int(out_channels * expansion)  # hidden channels
         self.conv1 = ConvLayer(in_channels=in_channels,
                                out_channels=hidden_channels,
@@ -799,12 +809,27 @@ class CSPLayer(nn.Module):
                               out_channels=hidden_channels,
                               kernel_size=1,
                               stride=1, act_type=act_type)
-        self.conv3 = ConvLayer(in_channels=2 * hidden_channels,
+
+        if layer_type.lower() == "csp":
+            block = DarknetBlock
+            self.concat = True
+        elif layer_type.lower() == "csprep":
+            block = RepConv
+            self.concat = False
+        elif layer_type.lower() == "repncsp":
+            block = RepNBottleneck
+            self.concat = True
+
+        if self.concat:
+            self.conv3 = ConvLayer(in_channels=2 * hidden_channels,
                                out_channels=out_channels,
                                kernel_size=1,
                                stride=1, act_type=act_type)
-
-        block = DarknetBlock
+        else:
+            self.conv3 = ConvLayer(in_channels=hidden_channels,
+                               out_channels=out_channels,
+                               kernel_size=1,
+                               stride=1, act_type=act_type)
 
         module_list = [
             block(
@@ -823,7 +848,7 @@ class CSPLayer(nn.Module):
         x_1 = self.conv1(x)
         x_2 = self.conv2(x)
         x_1 = self.m(x_1)
-        x = torch.cat((x_1, x_2), dim=1)
+        x = torch.cat((x_1, x_2), dim=1) if self.concat else x_1 + x_2
         return self.conv3(x)
 
 
@@ -836,7 +861,7 @@ class CSPRepLayer(nn.Module):
                  bias: bool= False,
                  act: str="silu"):
         super(CSPRepLayer, self).__init__()
-        warnings.warn("CSPRepLayer would be deprecated. It would be unified into CSPLayer.")
+        warnings.warn("CSPRepLayer would be deprecated. It would be unified into CSPLayer.", stacklevel=2)
         hidden_channels = int(out_channels * expansion)
         self.conv1 = ConvLayer(in_channels, hidden_channels, kernel_size=1, stride=1, bias=bias, act_type=act)
         self.conv2 = ConvLayer(in_channels, hidden_channels, kernel_size=1, stride=1, bias=bias, act_type=act)
@@ -854,10 +879,6 @@ class CSPRepLayer(nn.Module):
         x_2 = self.conv2(x)
         return self.conv3(x_1 + x_2)
 
-
-class RepNCSPLayer(nn.Module):
-    def __init__(self):
-        super().__init__()
 
 class SPPBottleneck(nn.Module):
     """Spatial pyramid pooling layer used in YOLOv3-SPP"""

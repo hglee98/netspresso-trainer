@@ -827,6 +827,11 @@ class CSPRepLayer(nn.Module):
         x_2 = self.conv2(x)
         return self.conv3(x_1 + x_2)
 
+
+class RepNCSPLayer(nn.Module):
+    def __init__(self):
+        super().__init__()
+
 class SPPBottleneck(nn.Module):
     """Spatial pyramid pooling layer used in YOLOv3-SPP"""
 

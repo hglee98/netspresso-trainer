@@ -41,7 +41,7 @@ class RepNCSPELAN(nn.Module):
         self.use_intermediate_features = self.task in USE_INTERMEDIATE_FEATURES_TASK_LIST
         super().__init__()
 
-        out_features=("B3", "B4", "B5")
+        out_features=("stage3", "stage4", "stage5")
         assert out_features, "please provide output features of RepNCSP-ELAN"
         dep_mul = params.dep_mul
         wid_mul = params.wid_mul

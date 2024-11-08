@@ -893,5 +893,16 @@ class ELAN(nn.Module):
 
 
 class AConv(nn.Module):
-    def __init__(self):
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        act_type: Optional[str]=None):
         super().__init__()
+        self.avg_pool = Pool("avg", kernel_size=2, stride=1)
+        self.conv = ConvLayer(in_channels, out_channels, kernel_size=3, stride=2, act_type=act_type)
+
+    def forward(self, x: Union[Tensor, Proxy]) -> Union[Tensor, Proxy]:
+        x = self.avg_pool(x)
+        x = self.conv(x)
+        return x

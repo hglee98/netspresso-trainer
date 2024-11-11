@@ -1,0 +1,42 @@
+model:
+  task: detection
+  name: yolov9_tiny
+  checkpoint:
+    use_pretrained: False
+    load_head: False
+    path: ~ 
+    optimizer_path: ~
+  freeze_backbone: False
+  architecture:
+    full: ~ # auto
+    backbone:
+      name: gelan
+      params:
+        dep_mul: &dep_mul 0.33
+        wid_mul: 0.25
+        act_type: &act_type "silu"
+      stage_params: ~
+    neck:
+      name: yolov9fpn
+      params:
+        dep_mul: *dep_mul
+        act_type: *act_type
+    head:
+      name: yolo_detection_head
+      params:
+        version: v9
+        num_anchors: ~
+        use_group: True
+        reg_max: 16
+        act_type: *act_type 
+  postprocessor: 
+    params: 
+      # postprocessor - decode
+      score_thresh: 0.01
+      # postprocessor - nms
+      nms_thresh: 0.65
+      class_agnostic: False
+  losses:
+    - criterion: yolox_loss
+      weight: ~
+      l1_activate_epoch: 285

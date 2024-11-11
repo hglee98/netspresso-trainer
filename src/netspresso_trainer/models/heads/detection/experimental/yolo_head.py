@@ -109,13 +109,13 @@ class Detection(nn.Module):
                     m.momentum = 0.03
         self.apply(init_bn)
 
-        bias_reg = self.reg_convs[-1].conv.bias.view(1, -1)
+        bias_reg = self.reg_convs[-1].bias.view(1, -1)
         bias_reg.data.fill_(-math.log((1 - prior_prob) / prior_prob))
-        self.reg_convs[-1].conv.bias = torch.nn.Parameter(bias_reg.view(-1), requires_grad=True)
+        self.reg_convs[-1].bias = torch.nn.Parameter(bias_reg.view(-1), requires_grad=True)
 
-        bias_cls = self.cls_convs[-1].conv.bias.view(1, -1)
+        bias_cls = self.cls_convs[-1].bias.view(1, -1)
         bias_cls.data.fill_(-math.log((1 - prior_prob) / prior_prob))
-        self.cls_convs[-1].conv.bias = torch.nn.Parameter(bias_cls.view(-1), requires_grad=True)
+        self.cls_convs[-1].bias = torch.nn.Parameter(bias_cls.view(-1), requires_grad=True)
 
     def forward(self, x: Union[Tensor, Proxy]) -> Tuple[Union[Tensor, Proxy]]:
         reg = self.reg_convs(x)

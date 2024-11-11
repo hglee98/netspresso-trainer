@@ -1146,3 +1146,75 @@ class SPPELAN(nn.Module):
         for pool in self.pools:
             features.append(pool(features[-1]))
         return self.conv5(torch.cat(features, dim=1))
+
+
+class Anchor2Vec(nn.Module):
+    """
+    This implementation is based on https://github.com/WongKinYiu/YOLO/blob/main/yolo/model/module.py
+    """
+    def __init__(self,
+                 reg_max: int = 16):
+        super().__init__()
+        reverse_reg = torch.arange(reg_max, dtype=torch.float32).view(1, reg_max, 1, 1, 1)
+        self.anchor2vec = nn.Conv3d(in_channels=reg_max, out_channels=1, kernel_size=1, bias=False)
+        self.anchor2vec.weight = nn.Parameter(reverse_reg, requires_grad=False)
+
+    def forward(self, x: Union[Tensor, Proxy]) -> Union[Tensor, Proxy]:
+        b, c, h, w = x.shape
+        r = c // 4
+        p = 4
+        anchor_x = x.view(b, r, p, h, w)
+        vector_x = self.anchor2vec(anchor_x.softmax(dim=1))[:, 0]
+        return anchor_x, vector_x
+
+
+class ImplicitAdd(nn.Module):
+    """
+    Implement YOLOR - implicit knowledge(Add), paper: https://arxiv.org/abs/2105.04206
+    """
+
+    def __init__(self,
+                 num_channels: int,
+                 mean: float=0.0,
+                 std: float=0.02):
+        super().__init__()
+
+        self.implicit = nn.Parameter(torch.empty(1, num_channels, 1, 1))
+        nn.init.normal_(self.implicit, mean=mean, std=std)
+
+    def forward(self, x: Union[Tensor, Proxy]) -> Union[Tensor, Proxy]:
+        return self.implicit + x
+
+
+class ImplicitMul(nn.Module):
+    """
+    Implement YOLOR - implicit knowledge(multiply), paper: https://arxiv.org/abs/2105.04206
+    """
+
+    def __init__(self,
+                 num_channels: int,
+                 mean: float=1.0,
+                 std: float=0.02):
+        super().__init__()
+
+        self.implicit = nn.Parameter(torch.empty(1, num_channels, 1, 1))
+        nn.init.normal_(self.implicit, mean=mean, std=std)
+
+    def forward(self, x: Union[Tensor, Proxy]) -> Union[Tensor, Proxy]:
+        return self.implicit * x
+
+class ImplicitCat(nn.Module):
+    """
+    Implement YOLOR - implicit knowledge(concatenate), paper: https://arxiv.org/abs/2105.04206
+    """
+    def __init__(self,
+                 num_channels: int,
+                 mean: float=0.0,
+                 std: float=0.02):
+        super().__init__()
+
+        self.implicit = nn.Parameter(torch.empty(1, num_channels, 1, 1))
+        nn.init.normal_(self.implicit, mean=mean, std=std)
+
+    def forward(self) -> Union[Tensor, Proxy]:
+        return self.implicit

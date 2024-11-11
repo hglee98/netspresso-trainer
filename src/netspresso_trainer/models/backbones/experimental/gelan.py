@@ -43,6 +43,7 @@ class GELAN(nn.Module):
 
         out_features=("stage3", "stage4", "stage5")
         assert out_features, "please provide output features of RepNCSP-ELAN"
+        self.out_features = out_features
         dep_mul = params.dep_mul
         wid_mul = params.wid_mul
         act_type = params.act_type

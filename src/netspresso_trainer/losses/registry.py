@@ -15,7 +15,7 @@
 # ----------------------------------------------------------------------------
 
 from .common import CrossEntropyLoss, SigmoidFocalLoss
-from .detection import DETRLoss, RetinaNetLoss, YOLOFastestLoss, YOLOXLoss
+from .detection import DETRLoss, RetinaNetLoss, YOLOFastestLoss, YOLOXLoss, YOLOv9Loss
 from .pose_estimation import RTMCCLoss
 from .segmentation import PIDNetLoss, SegCrossEntropyLoss
 
@@ -23,6 +23,7 @@ LOSS_DICT = {
     'cross_entropy': CrossEntropyLoss,
     'seg_cross_entropy': SegCrossEntropyLoss,
     'pidnet_loss': PIDNetLoss,
+    'yolov9_loss': YOLOv9Loss,
     'yolox_loss': YOLOXLoss,
     'yolofastest_loss': YOLOFastestLoss,
     'retinanet_loss': RetinaNetLoss,

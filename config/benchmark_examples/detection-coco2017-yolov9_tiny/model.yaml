@@ -32,11 +32,11 @@ model:
   postprocessor: 
     params: 
       # postprocessor - decode
-      score_thresh: 0.01
+      score_thresh: 0.0001
       # postprocessor - nms
-      nms_thresh: 0.65
+      nms_thresh: 0.70
       class_agnostic: False
   losses:
-    - criterion: yolox_loss
+    - criterion: yolov9_loss
       weight: ~
       l1_activate_epoch: 285

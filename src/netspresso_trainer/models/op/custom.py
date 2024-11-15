@@ -1022,6 +1022,7 @@ class ELAN(nn.Module):
     """
     unified ELAN structure.
     It supports ['basic', 'repncsp'] ELAN structure.
+    This implementation is based on https://github.com/WongKinYiu/YOLO/blob/main/yolo/model/module.py.
     """
     def __init__(self,
                  in_channels: int,

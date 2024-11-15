@@ -21,6 +21,7 @@ model:
       params:
         dep_mul: *dep_mul
         act_type: *act_type
+        use_aux_loss: &use_aux_loss true
     head:
       name: yolo_detection_head
       params:
@@ -28,7 +29,8 @@ model:
         num_anchors: ~
         use_group: True
         reg_max: 16
-        act_type: *act_type 
+        act_type: *act_type
+        use_aux_loss: *use_aux_loss
   postprocessor: 
     params: 
       # postprocessor - decode

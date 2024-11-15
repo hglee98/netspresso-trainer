@@ -15,7 +15,7 @@
 # ----------------------------------------------------------------------------
 
 from .common import CrossEntropyLoss, SigmoidFocalLoss
-from .detection import DETRLoss, RetinaNetLoss, YOLOFastestLoss, YOLOXLoss, YOLOv9Loss
+from .detection import DETRLoss, RetinaNetLoss, YOLOFastestLoss, YOLOv9Loss, YOLOXLoss
 from .pose_estimation import RTMCCLoss
 from .segmentation import PIDNetLoss, SegCrossEntropyLoss
 

@@ -22,7 +22,7 @@ import torchvision
 from torchvision.models.detection._utils import BoxCoder, _topk_min
 from torchvision.ops import boxes as box_ops
 
-from netspresso_trainer.utils.bbox_utils import transform_bbox, generate_anchors
+from netspresso_trainer.utils.bbox_utils import generate_anchors, transform_bbox
 
 from ..models.utils import ModelOutput
 
@@ -218,7 +218,9 @@ def yolo_fastest_head_decode(pred, original_shape, score_thresh=0.7, anchors=Non
 
 def yolo_head_decode(pred, original_shape, score_thresh=0.7):
     pred = pred['pred']
-    dtype = pred[0][0].type()
+    if isinstance(pred, dict):
+        pred = pred['outputs']
+    pred[0][0].type()
     h, w = original_shape[1], original_shape[2]
     device = pred[0][0].device
     stage_strides= [original_shape[-1] // bbox_reg.shape[-1] for bbox_reg, _, _  in pred]

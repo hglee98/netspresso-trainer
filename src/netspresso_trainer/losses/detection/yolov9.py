@@ -14,15 +14,18 @@
 #
 # ----------------------------------------------------------------------------
 
-from typing import Any, Dict, List, Tuple
 import math
+from typing import Any, Dict, List, Tuple, Union
 
 import torch
 import torch.nn.functional as F
 from torch import Tensor, nn
 from torch.nn import BCEWithLogitsLoss
+
+from netspresso_trainer.utils.bbox_utils import generate_anchors
+
 from .yolox import IOUloss, YOLOXLoss
-from netspresso_trainer.utils.bbox_utils import generate_anchors, calculate_iou
+
 
 def calculate_iou(bbox1, bbox2, metrics="iou") -> Tensor:
     metrics = metrics.lower()
@@ -309,7 +312,8 @@ class YOLOv9Loss(nn.Module):
         self.cls = BCELoss()
         self.iou = BoxLoss()
         self.reg_max = 16
-    
+        self.aux_rate = 0.25
+
     def get_output(self, output, anchor_grid, scaler):
         pred_bbox_reg, pred_bbox_anchor, pred_class_logits = [], [], []
         for layer_output in output:
@@ -335,8 +339,13 @@ class YOLOv9Loss(nn.Module):
         pred_bbox_reg = torch.cat([anchor_grid - lt, anchor_grid + rb], dim=-1)
         return pred_class_logits, pred_bbox_anchor, pred_bbox_reg
 
-    def forward(self, out: List, target: Dict) -> Tensor:
-        out = out['pred']
+    def forward(self, out: Union[List, Dict], target: Dict) -> Tensor:
+        if isinstance(out['pred'], Dict):
+            aux_out = out['pred']['aux_outputs']
+            out = out['pred']['outputs']
+        else:
+            out = out['pred']
+            aux_out = None
         device = out[0][0].device
         self.num_classes = target['num_classes']
         img_size = target['img_size']
@@ -345,17 +354,20 @@ class YOLOv9Loss(nn.Module):
 
         target = target['gt']
 
-        strides = list()
-        for k, o in enumerate(out):
+        strides = []
+        for _k, o in enumerate(out):
             bbox_reg, _, _ = o
             stride_this_level = img_size[-1] // bbox_reg.size(-1)
             strides.append(stride_this_level)
         anchor_grid, scaler = generate_anchors(img_size, strides)
         anchor_grid = anchor_grid.to(device)
         scaler = scaler.to(device)
-        
+
         dfl = DFLoss(anchor_grid, scaler, self.reg_max)
         preds_cls, preds_anc, preds_box = self.get_output(out, anchor_grid=anchor_grid, scaler=scaler)
+        if aux_out:
+            aux_preds_cls, aux_preds_anc, aux_preds_box = self.get_output(aux_out, anchor_grid=anchor_grid, scaler=scaler)
+
         matcher = BoxMatcher(self.num_classes, anchor_grid)
         max_samples = max([len(t['labels']) for t in target])
         labels = torch.zeros(len(target), max_samples, 5).to(device)
@@ -366,11 +378,23 @@ class YOLOv9Loss(nn.Module):
             sample_num = len(batch_labels)
             labels[batch_idx, :sample_num, 1:5] = batch_boxes
             labels[batch_idx, :sample_num, 0] = batch_labels
-        
+
         align_targets, valid_masks = matcher(labels, (preds_cls.detach(), preds_box.detach()))
         targets_cls, targets_bbox = self.separate_anchor(align_targets, scaler)
         cls_norm = targets_cls.sum()
         box_norm = targets_cls.sum(-1)[valid_masks]
+        if aux_out:
+            aux_align_targets, aux_valid_masks = matcher(labels, (aux_preds_cls.detach(), aux_preds_box.detach()))
+            aux_targets_cls, aux_targets_bbox = self.separate_anchor(aux_align_targets, scaler)
+            aux_cls_norm = aux_targets_cls.sum()
+            aux_box_norm = aux_targets_cls.sum(-1)[aux_valid_masks]
+            ## -- CLS -- ##
+            aux_loss_cls = self.cls(aux_preds_cls, aux_targets_cls, aux_cls_norm)
+            ## -- IOU -- ##
+            aux_loss_iou = self.iou(aux_preds_box, aux_targets_bbox, aux_valid_masks, aux_box_norm, aux_cls_norm)
+            ## -- DFL -- ##
+            aux_loss_dfl = dfl(aux_preds_anc, aux_targets_bbox, aux_valid_masks, aux_box_norm, aux_cls_norm)
+
 
         ## -- CLS -- ##
         loss_cls = self.cls(preds_cls, targets_cls, cls_norm)
@@ -379,8 +403,12 @@ class YOLOv9Loss(nn.Module):
         ## -- DFL -- ##
         loss_dfl = dfl(preds_anc, targets_bbox, valid_masks, box_norm, cls_norm)
 
-        return 0.5 * loss_cls + 1.5 * loss_dfl + 7.5 * loss_iou
-    
+        if aux_out:
+            total_loss = 0.5 * (self.aux_rate * aux_loss_cls + loss_cls) + 1.5 * (self.aux_rate * aux_loss_dfl + loss_dfl) + 7.5 * (self.aux_rate * aux_loss_iou + loss_iou)
+        else:
+            total_loss = 0.5 * loss_cls + 1.5 * loss_dfl + 7.5 * loss_iou
+        return total_loss
+
     def separate_anchor(self, anchors, scaler):
         """
         separate anchor and bbouding box

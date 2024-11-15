@@ -26,7 +26,7 @@ import torch.nn as nn
 from omegaconf import DictConfig
 from torch import Tensor
 from torch.fx.proxy import Proxy
-from typing import List, Union, Optional, Tuple
+from typing import List, Union, Optional, Tuple, Dict
 from ....op.custom import ConvLayer, Anchor2Vec, ImplicitAdd, ImplicitMul
 from ....utils import ModelOutput
 
@@ -150,12 +150,22 @@ class YOLODetectionHead(nn.Module):
             params.use_group
         )
 
+        if params.use_aux_loss:
+            self.aux_heads = self._build_heads(
+                intermediate_features_dim,
+                params.act_type,
+                params.reg_max,
+                params.use_group
+            )
+        else:
+            self.aux_heads = None
+
     def _validate_params(self, params: DictConfig) -> None:
         if self.version == 'v7':
             if not isinstance(params.num_anchors, int):
                 raise ValueError("num_anchors must be integer for v7")
         
-        required_params = ['act_type', 'use_group', 'reg_max', 'num_anchors']
+        required_params = ['act_type', 'use_group', 'reg_max', 'num_anchors', 'use_aux_loss']
         for param in required_params:
             if not hasattr(params, param):
                 raise ValueError(f"Missing required parameter: {param}")
@@ -187,8 +197,17 @@ class YOLODetectionHead(nn.Module):
             heads.append(head)
         return heads
 
-    def forward(self, x_in: List[Tensor], targets: Optional[Tensor] = None) -> ModelOutput:
+    def forward(self, x_in: Union[List[Tensor], Dict], targets: Optional[Tensor] = None) -> ModelOutput:
+        if isinstance(x_in, Dict):
+            assert self.aux_heads
+            aux_in = x_in["aux_outputs"]
+            x_in = x_in["outputs"]
+        else:
+            aux_in = None
         outputs = [head(x) for head, x in zip(self.heads, x_in)]
+        if self.training and self.aux_heads:
+            aux_outputs = [head(x) for head, x in zip(self.aux_heads, aux_in)]
+            outputs = {"outputs": outputs, "aux_outputs": aux_outputs}
         return ModelOutput(pred=outputs)
 
 def yolo_detection_head(num_classes, intermediate_features_dim, conf_model_head, **kwargs):

@@ -64,6 +64,7 @@ class YOLOv9FPN(nn.Module):
             part_channels=int(self.in_channels[1]),
             n=round(3 * base_depth),
             layer_type="repncsp",
+            use_identity=False,
             act_type=act_type
         )
 
@@ -74,6 +75,7 @@ class YOLOv9FPN(nn.Module):
                 part_channels=int(self.in_channels[1]),
                 n=round(3 * base_depth),
                 layer_type="repncsp",
+                use_identity=False,
                 act_type=act_type
             )
         else:
@@ -85,6 +87,7 @@ class YOLOv9FPN(nn.Module):
             part_channels=int(self.in_channels[0]),
             n=round(3 * base_depth),
             layer_type="repncsp",
+            use_identity=False,
             act_type=act_type
         )
 
@@ -95,6 +98,7 @@ class YOLOv9FPN(nn.Module):
                 part_channels=int(self.in_channels[0]),
                 n=round(3 * base_depth),
                 layer_type="repncsp",
+                use_identity=False,
                 act_type=act_type
             )
         else:
@@ -113,6 +117,7 @@ class YOLOv9FPN(nn.Module):
             part_channels=int(self.in_channels[1]),
             n=round(3 * base_depth),
             layer_type="repncsp",
+            use_identity=False,
             act_type=act_type,
         )
         
@@ -128,6 +133,7 @@ class YOLOv9FPN(nn.Module):
             part_channels=int(self.in_channels[2]),
             n=round(3 * base_depth),
             layer_type="repncsp",
+            use_identity=False,
             act_type=act_type
         )
         

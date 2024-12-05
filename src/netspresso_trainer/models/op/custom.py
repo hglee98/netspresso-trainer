@@ -211,7 +211,7 @@ class RepVGGBlock(nn.Module):
         self.groups = groups
         self.conv1 = ConvLayer(in_channels, out_channels, kernel_size, groups=groups, use_act=False)
         self.conv2 = ConvLayer(in_channels, out_channels, 1, groups=groups, use_act=False)
-        self.rbr_identity = nn.BatchNorm2d(num_features=in_channels) if use_identity and out_channels == in_channels else nn.Identity()
+        self.rbr_identity = nn.BatchNorm2d(num_features=in_channels) if use_identity and out_channels == in_channels else None
 
         assert act_type in ACTIVATION_REGISTRY
         self.act = ACTIVATION_REGISTRY[act_type]()
@@ -220,7 +220,11 @@ class RepVGGBlock(nn.Module):
         if hasattr(self, 'conv'):
             y = self.conv(x)
             return y
-        y = self.conv1(x) + self.conv2(x) + self.rbr_identity(x)
+        
+        if self.rbr_identity:
+            y = self.conv1(x) + self.conv2(x) + self.rbr_identity(x)
+        else:
+            y = self.conv1(x) + self.conv2(x)
 
         return self.act(y)
 
@@ -414,10 +418,11 @@ class RepNBottleneck(nn.Module):
                  shortcut: bool = True,
                  expansion: float = 1.0,
                  depthwise: bool = False,
-                 act_type: Optional[str] = None):
+                 act_type: Optional[str] = None,
+                 **kwargs):
         super().__init__()
         hidden_channels = int(out_channels * expansion)
-        self.conv1 = RepVGGBlock(in_channels, hidden_channels, 3, act_type=act_type)
+        self.conv1 = RepVGGBlock(in_channels, hidden_channels, 3, act_type=act_type, **kwargs)
         if depthwise:
             self.conv2 = SeparableConvLayer(hidden_channels,
                                             out_channels,
@@ -846,6 +851,7 @@ class CSPLayer(nn.Module):
         depthwise=False,
         act_type="silu",
         layer_type: Optional[str] = "csp",
+        **kwargs
     ):
         """
         Args:
@@ -893,7 +899,8 @@ class CSPLayer(nn.Module):
                 shortcut=shortcut,
                 expansion=1.0,
                 depthwise=depthwise,
-                act_type=act_type
+                act_type=act_type,
+                **kwargs
             )
             for _ in range(n)
         ]

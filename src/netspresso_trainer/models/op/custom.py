@@ -220,11 +220,8 @@ class RepVGGBlock(nn.Module):
         if hasattr(self, 'conv'):
             y = self.conv(x)
             return y
-        
-        if self.rbr_identity:
-            y = self.conv1(x) + self.conv2(x) + self.rbr_identity(x)
-        else:
-            y = self.conv1(x) + self.conv2(x)
+
+        y = self.conv1(x) + self.conv2(x) + self.rbr_identity(x) if self.rbr_identity else self.conv1(x) + self.conv2(x)
 
         return self.act(y)
 

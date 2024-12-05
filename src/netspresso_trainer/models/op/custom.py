@@ -138,7 +138,7 @@ class ConvLayer(nn.Module):
             _act_type = act_type.lower() if act_type is not None else 'relu'
             assert _act_type in ACTIVATION_REGISTRY
             cls_act = ACTIVATION_REGISTRY[_act_type]
-            act_layer = cls_act()
+            act_layer = cls_act(inplace=True)
             block.add_module(name='act', module=act_layer)
             self.act_name = act_layer.__class__.__name__
 
@@ -177,7 +177,7 @@ class SeparableConvLayer(nn.Module):
                                    use_norm=use_norm, norm_type=norm_type, use_act=use_act, act_type=act_type,)
         self.pointwise = ConvLayer(in_channels=in_channels, out_channels=out_channels, kernel_size=1,
                                    use_norm=use_norm, norm_type=norm_type, use_act=False)
-        self.final_act = nn.Identity() if no_out_act else ACTIVATION_REGISTRY[act_type]()
+        self.final_act = nn.Identity() if no_out_act else ACTIVATION_REGISTRY[act_type](inplace=True)
 
     def forward(self, x: Union[Tensor, Proxy]) -> Union[Tensor, Proxy]:
         x = self.depthwise(x)
@@ -214,7 +214,7 @@ class RepVGGBlock(nn.Module):
         self.rbr_identity = nn.BatchNorm2d(num_features=in_channels) if use_identity and out_channels == in_channels else None
 
         assert act_type in ACTIVATION_REGISTRY
-        self.act = ACTIVATION_REGISTRY[act_type]()
+        self.act = ACTIVATION_REGISTRY[act_type](inplace=True)
 
     def forward(self, x: Union[Tensor, Proxy]) -> Union[Tensor, Proxy]:
         if hasattr(self, 'conv'):

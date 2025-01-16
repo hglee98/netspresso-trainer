@@ -1286,23 +1286,18 @@ class Anchor2Vec(nn.Module):
         super().__init__()
         self.reg_max = reg_max
         self.num_predictions = 4 # Number of predictions per anchor
-        reverse_reg = torch.arange(reg_max, dtype=torch.float32).view(1, reg_max, 1, 1, 1)
-        self.anchor2vec = nn.Conv3d(in_channels=reg_max, out_channels=1, kernel_size=1, bias=False)
-        self.anchor2vec.weight = nn.Parameter(reverse_reg, requires_grad=False)
+        reverse_reg = torch.arange(reg_max, dtype=torch.float32)
+        self.anchor2vec = nn.Conv2d(in_channels=self.reg_max, out_channels=1, kernel_size=1, bias=False).requires_grad_(False)
+        self.anchor2vec.weight.data[:] = nn.Parameter(reverse_reg.view(1, self.reg_max, 1, 1), requires_grad=False)
 
     def forward(self, x: Union[Tensor, Proxy]) -> Union[Tensor, Proxy]:
         """
         Args:
-            x (Tensor): Input tensor of shape (batch_size, channels, height, width)
+            x (Tensor): Input tensor of shape (batch_size, channels, height * width)
 
         Returns:
-            Tuple[Tensor, Tensor]: Tuple of (anchor_tensor, vector_tensor)
-            where anchor_tensor has shape (batch_size, r, 4, height, width)
-            and vector_tensor has shape (batch_size, height, width)
+            Tensor: Output tensor of shape (batch_size, 4, height * width)
         """
-        batch_size, _, height, width = x.shape
-        anchor_x = x.view(batch_size, self.num_predictions, self.reg_max, height, width)
-        anchor_x = anchor_x.permute(0, 2, 1, 3, 4)
-        self.anchor2vec = self.anchor2vec.to(x.device)
-        vector_x = self.anchor2vec(anchor_x.softmax(dim=1))[:, 0]
-        return anchor_x, vector_x
+        b, _, hw = x.shape
+        vector_x = self.anchor2vec(x.view(b, self.num_predictions, self.reg_max, hw).transpose(2, 1).softmax(dim=1)).view(b, self.num_predictions, hw)
+        return vector_x

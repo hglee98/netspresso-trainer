@@ -87,8 +87,14 @@ class Detection(nn.Module):
     
     def forward(self, x: Union[Tensor, Proxy]) -> Tuple[Union[Tensor, Proxy]]:
         reg = self.reg_convs(x)
+        b, c, h, w = reg.shape
+        reg = reg.view(b, c, h*w)
+
         cls_logits = self.cls_convs(x)
-        output = torch.cat([reg, cls_logits], dim=1)
+        b, c, h, w = cls_logits.shape
+        cls_logits = cls_logits.view(b, c, h*w)
+        bbox_preds = self.anchor2vec(reg)
+        output = torch.cat([bbox_preds, reg, cls_logits], dim=1)
         return output
 
 

@@ -327,24 +327,19 @@ class YOLOv9Loss(nn.Module):
         self.cls = BCELoss()
         self.iou = BoxLoss()
         self.reg_max = kwargs.get("reg_max", 16)
-        self.anc2vec = Anchor2Vec(self.reg_max)
         self.aux_rate = 0.25 # TODO: should be controlled by config
 
     def get_output(self, output, anchor_grid, scaler):
         pred_bbox_reg, pred_bbox_anchor, pred_class_logits = [], [], []
         for layer_output in output:
-            reg, class_logits = torch.split(layer_output, [layer_output.shape[1] - self.num_classes, self.num_classes], dim=1)
-            bbox_anchor, bbox_reg = self.anc2vec(reg)
-            b, c, _, _ = bbox_reg.shape
-            reg = bbox_reg.view(b, c, -1).permute(0, 2, 1)
+            bbox_reg, bbox_anchor, class_logits = torch.split(layer_output, [4, layer_output.shape[1] - self.num_classes - 4, self.num_classes], dim=1)
+            reg = bbox_reg.permute(0, 2, 1)
             pred_bbox_reg.append(reg)
 
-            b, a, r, _, _ = bbox_anchor.shape
-            anchor = bbox_anchor.view(b, a, r, -1).permute(0, 3, 2, 1)
+            anchor = bbox_anchor.view(bbox_anchor.shape[0], self.reg_max, 4, -1).permute(0, 3, 2, 1)
             pred_bbox_anchor.append(anchor)
 
-            b, c, _, _ = class_logits.shape
-            logits = class_logits.view(b, c, -1).permute(0, 2, 1)
+            logits = class_logits.permute(0, 2, 1)
             pred_class_logits.append(logits)
 
         pred_bbox_reg = torch.concat(pred_bbox_reg, dim=1)
@@ -369,7 +364,7 @@ class YOLOv9Loss(nn.Module):
 
         strides = []
         for _k, o in enumerate(out):
-            stride_this_level = img_size[-1] // o.size(-1)
+            stride_this_level = int(math.sqrt((img_size[0] * img_size[1]) // o.size(-1)))
             strides.append(stride_this_level)
         anchor_grid, scaler = generate_anchors(img_size, strides)
         anchor_grid = anchor_grid.to(device)
